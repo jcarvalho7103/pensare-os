@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+# pensare-cost — Analisa custo de tokens por tier do Pensare OS.
+# Usage: pensare-cost [--session] [--alert]
+
+import argparse
+import json
+import os
+import sys
+
+LOG_FILE = "/Users/alicycarvalho/pensare-os/logs/events.ndjson"
+
+# Targets de distribuição por tier (fração do total)
+TARGETS = {
+    "coordinator": 0.10,
+    "strategic":   0.00,   # não tem target próprio — incluso em director ou coordinator
+    "director":    0.20,
+    "employee":    0.70,
+}
+
+# Mapeamento de prefixo de agente para tier
+TIER_MAP = {
+    "pensare-ceo":         "coordinator",
+    "pensare-conselho":    "coordinator",
+    "pensare-estrategia":  "director",
+    "pensare-financeiro":  "director",
+    "pensare-operacoes":   "director",
+    "pensare-produto":     "director",
+    "pensare-inteligencia":"director",
+    "pensare-comercial":   "director",
+    "pensare-growth":      "employee",
+    "pensare-copy":        "employee",
+    "pensare-criativos":   "employee",
+    "pensare-trafego":     "employee",
+    "pensare-sdr":         "employee",
+    "pensare-closer":      "employee",
+    "pensare-cs":          "employee",
+    "pensare-dados":       "employee",
+    "pensare-automacao":   "employee",
+}
+
+# Tiers reconhecidos para exibição (na ordem da tabela)
+DISPLAY_TIERS = ["coordinator", "director", "employee", "other"]
+
+# Targets para alert — apenas tiers com meta definida
+ALERT_TARGETS = {
+    "coordinator": 0.10,
+    "director":    0.20,
+    "employee":    0.70,
+}
+
+
+def agent_to_tier(agent: str) -> str:
+    """Resolve nome do agente para tier. Fallback: 'other'."""
+    for prefix, tier in TIER_MAP.items():
+        if agent.startswith(prefix):
+            return tier
+    return "other"
+
+
+def load_events(log_path: str) -> list[dict]:
+    """Lê events.ndjson e retorna lista de dicts. Ignora linhas malformadas."""
+    if not os.path.exists(log_path):
+        return []
+    events = []
+    with open(log_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # linha corrompida — ignora silenciosamente
+    return events
+
+
+def aggregate_tokens(events: list[dict]) -> dict[str, dict]:
+    """
+    Agrega tokens_in + tokens_out por tier.
+    Os eventos devem ter detail.tokens_in e detail.tokens_out.
+    """
+    totals: dict[str, dict] = {t: {"tokens_in": 0, "tokens_out": 0} for t in DISPLAY_TIERS}
+
+    for ev in events:
+        agent = ev.get("agent", "")
+        detail = ev.get("detail", {})
+        tokens_in = int(detail.get("tokens_in", 0) or 0)
+        tokens_out = int(detail.get("tokens_out", 0) or 0)
+        if tokens_in == 0 and tokens_out == 0:
+            continue
+        tier = agent_to_tier(agent)
+        totals[tier]["tokens_in"] += tokens_in
+        totals[tier]["tokens_out"] += tokens_out
+
+    return totals
+
+
+def print_table(totals: dict[str, dict], alert_mode: bool) -> None:
+    grand_total = sum(
+        v["tokens_in"] + v["tokens_out"] for v in totals.values()
+    )
+
+    col_widths = [14, 12, 8, 9]
+    header = (
+        f"{'TIER':<{col_widths[0]}}"
+        f"{'TOKENS':>{col_widths[1]}}"
+        f"{'%':>{col_widths[2]}}"
+        f"{'STATUS':>{col_widths[3]}}"
+    )
+    sep = "-" * sum(col_widths)
+    print(sep)
+    print(header)
+    print(sep)
+
+    for tier in DISPLAY_TIERS:
+        tokens = totals[tier]["tokens_in"] + totals[tier]["tokens_out"]
+        pct = (tokens / grand_total * 100) if grand_total > 0 else 0.0
+        target = ALERT_TARGETS.get(tier)
+
+        if target is None:
+            status = "—"
+        elif alert_mode and (pct / 100) > target * 1.5:
+            status = "WARNING"
+        else:
+            status = "OK"
+
+        target_str = f"(target ≤{int(target*100)}%)" if target else ""
+        print(
+            f"{tier:<{col_widths[0]}}"
+            f"{tokens:>{col_widths[1]},}"
+            f"{pct:>{col_widths[2]-1}.1f}%"
+            f"{status:>{col_widths[3]}}"
+            f"  {target_str}"
+        )
+
+    print(sep)
+    print(f"{'TOTAL':<{col_widths[0]}}{grand_total:>{col_widths[1]},}")
+    print(sep)
+
+    if alert_mode:
+        warnings = []
+        for tier, target in ALERT_TARGETS.items():
+            tokens = totals[tier]["tokens_in"] + totals[tier]["tokens_out"]
+            pct = (tokens / grand_total * 100) if grand_total > 0 else 0.0
+            if (pct / 100) > target * 1.5:
+                warnings.append(
+                    f"WARNING: tier '{tier}' está em {pct:.1f}% "
+                    f"(target ≤{int(target*100)}%, limite ≤{int(target*1.5*100)}%)"
+                )
+        for w in warnings:
+            print(w)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Analisa custo de tokens por tier do Pensare OS."
+    )
+    parser.add_argument(
+        "--session",
+        action="store_true",
+        help="Filtra apenas eventos da sessão atual (mesmo dia UTC)",
+    )
+    parser.add_argument(
+        "--alert",
+        action="store_true",
+        help="Imprime WARNING se algum tier ultrapassou target × 1.5",
+    )
+    args = parser.parse_args()
+
+    events = load_events(LOG_FILE)
+
+    if not events:
+        print("Nenhum evento encontrado em", LOG_FILE)
+        sys.exit(0)
+
+    # Filtra por sessão atual (dia UTC corrente)
+    if args.session:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        events = [
+            e for e in events
+            if e.get("timestamp", "").startswith(today)
+        ]
+        if not events:
+            print(f"Nenhum evento para a sessão de hoje ({today}).")
+            sys.exit(0)
+
+    totals = aggregate_tokens(events)
+    print_table(totals, alert_mode=args.alert)
+
+
+if __name__ == "__main__":
+    main()

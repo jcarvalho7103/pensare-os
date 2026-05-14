@@ -1,0 +1,10 @@
+# Dependências Python do Pensare OS Heartbeat daemon.
+#
+# O daemon usa exclusivamente a stdlib do Python 3.9+.
+# Nenhuma dependência externa é necessária.
+#
+# Se você quiser adicionar observabilidade ou notificações no futuro,
+# considere os pacotes abaixo (comentados por ora):
+#
+# httpx>=0.27          # HTTP async para webhooks (Slack, Telegram)
+# python-dotenv>=1.0   # .env loader se mover segredos para fora do plist

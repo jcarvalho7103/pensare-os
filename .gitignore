@@ -1,0 +1,26 @@
+# Runtime — não versionar
+logs/events.ndjson
+heartbeat/state.json
+daily/
+memory/per-agent/*/state.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+.vercel/output/
+
+# OS
+.DS_Store
+*.swp
+
+# Segredos
+.env.local
+.env.production

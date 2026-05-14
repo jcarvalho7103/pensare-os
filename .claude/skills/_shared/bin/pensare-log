@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# pensare-log — Appenda evento ao event log NDJSON do Pensare OS.
+# Usage: pensare-log <agent> <action> [key=value ...]
+# Ações válidas: start, complete, error, blocked
+
+set -euo pipefail
+
+LOG_FILE="/Users/alicycarvalho/pensare-os/logs/events.ndjson"
+
+# Validação de argumentos
+if [[ $# -lt 2 ]]; then
+    echo "Usage: pensare-log <agent> <action> [key=value ...]" >&2
+    echo "Ações: start, complete, error, blocked" >&2
+    exit 1
+fi
+
+AGENT="$1"
+ACTION="$2"
+shift 2
+
+# Valida ação
+case "$ACTION" in
+    start|complete|error|blocked) ;;
+    *)
+        echo "Ação inválida: '$ACTION'. Use: start, complete, error, blocked" >&2
+        exit 1
+        ;;
+esac
+
+# Determina status com base na ação
+case "$ACTION" in
+    start|complete) STATUS="ok" ;;
+    error|blocked)  STATUS="fail" ;;
+esac
+
+# Constrói o objeto detail a partir dos pares key=value restantes
+DETAIL="{"
+FIRST=1
+for pair in "$@"; do
+    KEY="${pair%%=*}"
+    VAL="${pair#*=}"
+    if [[ $FIRST -eq 0 ]]; then
+        DETAIL+=","
+    fi
+    # Escapa aspas no valor para JSON válido
+    VAL_ESCAPED="${VAL//\"/\\\"}"
+    DETAIL+="\"${KEY}\":\"${VAL_ESCAPED}\""
+    FIRST=0
+done
+DETAIL+="}"
+
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Monta linha NDJSON
+ENTRY="{\"timestamp\":\"${TIMESTAMP}\",\"agent\":\"${AGENT}\",\"action\":\"${ACTION}\",\"status\":\"${STATUS}\",\"detail\":${DETAIL}}"
+
+# Cria o arquivo e diretório pai se não existirem
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+
+# Appenda — nunca sobrescreve
+echo "$ENTRY" >> "$LOG_FILE"

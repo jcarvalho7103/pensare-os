@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+# pensare-reflect — Recupera reflexões relevantes de um agente do Pensare OS.
+# Usage: pensare-reflect <agent> [--tags tag1,tag2] [--top N]
+
+import argparse
+import sys
+import os
+import re
+
+MEMORY_BASE = "/Users/alicycarvalho/pensare-os/memory/per-agent"
+
+TEMPLATE = """\
+# Reflexões — {agent}
+
+<!-- Formato de cada reflexão:
+## [YYYY-MM-DD] Título curto
+tags: tag1, tag2
+Conteúdo da reflexão.
+-->
+"""
+
+
+def parse_reflections(content: str) -> list[dict]:
+    """Parseia reflexões do markdown no formato ## [YYYY-MM-DD] Título."""
+    reflections = []
+    # Divide em blocos por heading ##
+    blocks = re.split(r"(?=^## )", content, flags=re.MULTILINE)
+    for block in blocks:
+        block = block.strip()
+        if not block.startswith("## "):
+            continue
+        lines = block.splitlines()
+        header = lines[0]  # ## [2024-01-15] Título
+        date_match = re.search(r"\[(\d{4}-\d{2}-\d{2})\]", header)
+        date = date_match.group(1) if date_match else ""
+        title = re.sub(r"^## (\[\d{4}-\d{2}-\d{2}\]\s*)?", "", header).strip()
+
+        # Extrai tags da segunda linha se existir
+        tags = []
+        body_start = 1
+        if len(lines) > 1 and lines[1].startswith("tags:"):
+            raw_tags = lines[1].replace("tags:", "").strip()
+            tags = [t.strip().lower() for t in raw_tags.split(",") if t.strip()]
+            body_start = 2
+
+        body = "\n".join(lines[body_start:]).strip()
+
+        reflections.append({
+            "date": date,
+            "title": title,
+            "tags": tags,
+            "body": body,
+            "raw": block,
+        })
+
+    return reflections
+
+
+def filter_by_tags(reflections: list[dict], tags: list[str]) -> list[dict]:
+    """Mantém reflexões que contêm ao menos uma das tags solicitadas."""
+    tags_lower = [t.lower() for t in tags]
+    return [r for r in reflections if any(t in r["tags"] for t in tags_lower)]
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Recupera reflexões relevantes de um agente do Pensare OS."
+    )
+    parser.add_argument("agent", help="Nome do agente (ex: pensare-ceo)")
+    parser.add_argument(
+        "--tags",
+        help="Tags para filtrar, separadas por vírgula (ex: foco,bloqueio)",
+        default=None,
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=3,
+        help="Número máximo de reflexões a retornar (default: 3)",
+    )
+    args = parser.parse_args()
+
+    agent_dir = os.path.join(MEMORY_BASE, args.agent)
+    reflections_path = os.path.join(agent_dir, "reflections.md")
+
+    # Cria arquivo template se não existir
+    if not os.path.exists(reflections_path):
+        os.makedirs(agent_dir, exist_ok=True)
+        with open(reflections_path, "w", encoding="utf-8") as f:
+            f.write(TEMPLATE.format(agent=args.agent))
+        print("Sem reflexões anteriores.")
+        sys.exit(0)
+
+    with open(reflections_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    reflections = parse_reflections(content)
+
+    if not reflections:
+        print("Sem reflexões anteriores.")
+        sys.exit(0)
+
+    # Filtra por tags se fornecidas
+    if args.tags:
+        requested_tags = [t.strip() for t in args.tags.split(",") if t.strip()]
+        reflections = filter_by_tags(reflections, requested_tags)
+
+    if not reflections:
+        print("Sem reflexões para as tags solicitadas.")
+        sys.exit(0)
+
+    # Retorna as top-N mais recentes (ordenadas por data desc)
+    reflections.sort(key=lambda r: r["date"], reverse=True)
+    top = reflections[: args.top]
+
+    for r in top:
+        print(r["raw"])
+        print()
+
+
+if __name__ == "__main__":
+    main()

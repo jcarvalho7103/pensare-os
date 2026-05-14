@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pensare OS · Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #030712; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4B5563; }
+    [x-cloak] { display: none !important; }
+    .tab-enter { animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .md-content h1 { font-size:1.5rem;font-weight:700;margin-bottom:.75rem;color:#e5e7eb; }
+    .md-content h2 { font-size:1.2rem;font-weight:600;margin:1.25rem 0 .5rem;color:#d1d5db; }
+    .md-content h3 { font-size:1rem;font-weight:600;margin:1rem 0 .4rem;color:#9ca3af; }
+    .md-content p { margin-bottom:.75rem;line-height:1.7;color:#9ca3af; }
+    .md-content ul { list-style:disc;padding-left:1.5rem;margin-bottom:.75rem;color:#9ca3af; }
+    .md-content ol { list-style:decimal;padding-left:1.5rem;margin-bottom:.75rem;color:#9ca3af; }
+    .md-content li { margin-bottom:.25rem; }
+    .md-content code { background:#1f2937;padding:.15rem .4rem;border-radius:.25rem;font-family:monospace;font-size:.85em;color:#818cf8; }
+    .md-content pre { background:#111827;border:1px solid #1f2937;border-radius:.5rem;padding:1rem;overflow-x:auto;margin-bottom:.75rem; }
+    .md-content pre code { background:none;padding:0;color:#a5f3fc; }
+    .md-content blockquote { border-left:3px solid #4f46e5;padding-left:1rem;margin-left:0;color:#6b7280;font-style:italic; }
+    .md-content strong { color:#e5e7eb;font-weight:600; }
+    .md-content a { color:#818cf8;text-decoration:underline; }
+    .md-content table { width:100%;border-collapse:collapse;margin-bottom:1rem; }
+    .md-content th { background:#1f2937;padding:.5rem .75rem;text-align:left;font-size:.8rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em; }
+    .md-content td { padding:.5rem .75rem;border-bottom:1px solid #1f2937;color:#9ca3af;font-size:.9rem; }
+    .md-content hr { border-color:#1f2937;margin:1.5rem 0; }
+    .drag-over { outline: 2px dashed #4f46e5; }
+    .kanban-card { cursor: grab; }
+    .kanban-card:active { cursor: grabbing; }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              950: '#030712',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body
+  class="bg-gray-950 text-gray-100 min-h-screen"
+  x-data="pensareOS()"
+  x-init="init()"
+  x-cloak
+>
+
+<!-- ═══════════════════════════════════════════════════════ HEADER ════ -->
+<header class="fixed top-0 left-0 right-0 z-50 h-14 bg-gray-950/95 backdrop-blur border-b border-gray-800 flex items-center px-4 gap-4">
+  <!-- Logo -->
+  <div class="flex items-center gap-2 w-56 shrink-0">
+    <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-sm text-white select-none">P</div>
+    <span class="font-semibold text-white">Pensare OS</span>
+    <span class="ml-1 flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+      operando
+    </span>
+  </div>
+
+  <!-- Search -->
+  <div class="flex-1 max-w-md relative">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    <input
+      class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-9 pr-12 py-1.5 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+      placeholder="Buscar... (⌘K)"
+      x-model="searchQuery"
+      @keydown.meta.k.window.prevent="$el.focus()"
+    />
+    <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">⌘K</kbd>
+  </div>
+
+  <!-- Right side -->
+  <div class="ml-auto flex items-center gap-3 text-sm text-gray-500">
+    <span x-text="metrics.empresa || 'Pensare'"></span>
+    <div class="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center text-xs font-semibold text-white">IC</div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ LAYOUT ════ -->
+<div class="flex pt-14 min-h-screen">
+
+  <!-- ════════════════════════════════════════════════════ SIDEBAR ════ -->
+  <aside class="fixed left-0 top-14 bottom-0 w-56 bg-gray-950 border-r border-gray-800 overflow-y-auto z-40">
+    <nav class="p-3 space-y-0.5">
+      <template x-for="item in navItems" :key="item.id">
+        <button
+          @click="setTab(item.id)"
+          :class="activeTab === item.id
+            ? 'bg-indigo-600/20 text-indigo-400 border-r-2 border-indigo-500'
+            : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200'"
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-100 text-left"
+        >
+          <span x-html="item.icon" class="w-4 h-4 shrink-0"></span>
+          <span x-text="item.label"></span>
+          <span x-show="item.badge" x-text="item.badge" class="ml-auto text-xs bg-indigo-600/30 text-indigo-400 px-1.5 py-0.5 rounded-full"></span>
+        </button>
+      </template>
+    </nav>
+
+    <div class="p-3 border-t border-gray-800 mt-4">
+      <div class="text-xs text-gray-600 px-3 py-2">
+        <div class="text-gray-500 font-medium mb-1">Sistema</div>
+        <div>v1.0.0 · Claude Code</div>
+        <div class="mt-1" x-text="'Eventos: ' + (metrics.total_eventos || 0)"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════════════════════════════════════════ MAIN CONTENT ════ -->
+  <main class="ml-56 flex-1 p-6 min-w-0">
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: DASHBOARD ░░░░ -->
+    <section x-show="activeTab === 'dashboard'" class="tab-enter space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+          <p class="text-gray-500 text-sm mt-0.5" x-text="'Hoje: ' + new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'})"></p>
+        </div>
+        <button @click="loadDashboard()" class="flex items-center gap-2 text-sm text-gray-400 hover:text-white bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-800 hover:border-gray-700">
+          <svg class="w-4 h-4" :class="loadingMetrics && 'animate-spin'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Atualizar
+        </button>
+      </div>
+
+      <!-- Metric Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <template x-for="card in metricCards" :key="card.key">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wide" x-text="card.label"></p>
+            <p class="text-2xl font-bold text-white mt-1" x-text="metrics[card.key] ?? card.default"></p>
+            <p class="text-xs mt-1" :class="card.trendColor || 'text-gray-600'" x-text="card.trend || '—'"></p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Chart + Activity -->
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <!-- Bar Chart -->
+        <div class="xl:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h3 class="text-sm font-semibold text-gray-300 mb-4">Eventos — últimos 7 dias</h3>
+          <div class="h-40 flex items-end gap-2">
+            <template x-for="(day, i) in chartData" :key="i">
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <div
+                  class="w-full bg-indigo-600/70 rounded-t hover:bg-indigo-500 transition-colors"
+                  :style="`height: ${day.pct}%`"
+                  :title="`${day.label}: ${day.count} eventos`"
+                ></div>
+                <span class="text-xs text-gray-600" x-text="day.label"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+          <h3 class="text-sm font-semibold text-gray-300">Status hoje</h3>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-400">Eventos</span>
+              <span class="text-sm font-semibold text-white" x-text="metrics.eventos_hoje ?? 0"></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-400">Erros</span>
+              <span class="text-sm font-semibold" :class="(metrics.erros_hoje > 0) ? 'text-red-400' : 'text-emerald-400'" x-text="metrics.erros_hoje ?? 0"></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-400">Agentes ativos</span>
+              <span class="text-sm font-semibold text-white" x-text="metrics.agentes_hoje ?? 0"></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-400">Total eventos</span>
+              <span class="text-sm font-semibold text-indigo-400" x-text="metrics.total_eventos ?? 0"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Events Table -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-300">Atividade recente</h3>
+          <span class="text-xs text-gray-600" x-text="`${recentEvents.length} eventos`"></span>
+        </div>
+        <div x-show="recentEvents.length === 0" class="px-5 py-8 text-center text-gray-600 text-sm">Nenhum evento registrado ainda.</div>
+        <table x-show="recentEvents.length > 0" class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-gray-500 uppercase tracking-wide border-b border-gray-800">
+              <th class="px-5 py-2">Timestamp</th>
+              <th class="px-5 py-2">Agente</th>
+              <th class="px-5 py-2">Tipo</th>
+              <th class="px-5 py-2">Resumo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(ev, i) in recentEvents.slice(0,10)" :key="i">
+              <tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
+                <td class="px-5 py-2 text-gray-500 font-mono text-xs" x-text="formatTs(ev.ts)"></td>
+                <td class="px-5 py-2">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-indigo-600/20 text-indigo-400" x-text="ev.agent || '—'"></span>
+                </td>
+                <td class="px-5 py-2">
+                  <span class="text-xs px-2 py-0.5 rounded" :class="ev.type === 'error' || ev.type === 'erro' ? 'bg-red-900/30 text-red-400' : 'bg-gray-800 text-gray-400'" x-text="ev.type || '—'"></span>
+                </td>
+                <td class="px-5 py-2 text-gray-400 truncate max-w-xs" x-text="ev.summary || '—'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: CORE ░░░░░░ -->
+    <section x-show="activeTab === 'core'" class="tab-enter space-y-6">
+      <h1 class="text-2xl font-bold text-white">Core · Arquitetura</h1>
+      <p class="text-gray-500 text-sm">Hierarquia operacional do Pensare OS em 3 tiers.</p>
+
+      <!-- Tier diagram -->
+      <div class="space-y-4">
+        <!-- Tier 0: Coordinator -->
+        <div>
+          <div class="text-xs uppercase tracking-widest text-indigo-400 font-semibold mb-2 ml-1">Tier 0 — Coordinator</div>
+          <div class="flex justify-center">
+            <div class="bg-indigo-900/30 border border-indigo-700/50 rounded-xl px-6 py-4 text-center w-64 cursor-pointer hover:bg-indigo-900/50 transition-colors group" @click="coreModal = {name: 'Coordinator', description: 'Ponto de entrada único. Recebe objetivos, classifica intenção e roteia para o agente correto. Não executa trabalho operacional.', tier: 'coordinator', command: '/pensare'}">
+              <div class="w-10 h-10 rounded-lg bg-indigo-600 mx-auto flex items-center justify-center text-lg font-bold mb-2">⚡</div>
+              <div class="font-semibold text-white text-sm">Coordinator</div>
+              <div class="text-xs text-indigo-300 mt-1">/pensare</div>
+              <div class="text-xs text-gray-500 mt-2 hidden group-hover:block">Triagem · Roteamento</div>
+            </div>
+          </div>
+          <!-- Connector line -->
+          <div class="flex justify-center"><div class="w-px h-6 bg-gray-700"></div></div>
+        </div>
+
+        <!-- Tier 1: C-Suite -->
+        <div>
+          <div class="text-xs uppercase tracking-widest text-purple-400 font-semibold mb-2 ml-1">Tier 1 — C-Suite / Estratégico</div>
+          <div class="flex justify-center gap-4 flex-wrap">
+            <template x-for="agent in agents.filter(a => a.tier === 'c-suite' || a.tier === 'strategic')" :key="agent.id">
+              <div class="bg-purple-900/20 border border-purple-700/40 rounded-xl px-5 py-3 text-center w-48 cursor-pointer hover:bg-purple-900/40 transition-colors" @click="coreModal = agent">
+                <div class="font-semibold text-white text-sm" x-text="agent.name"></div>
+                <div class="text-xs text-purple-300 mt-0.5" x-text="agent.command"></div>
+              </div>
+            </template>
+            <!-- Static fallback if no agents loaded yet -->
+            <template x-if="agents.filter(a => a.tier === 'c-suite' || a.tier === 'strategic').length === 0">
+              <div class="flex gap-4">
+                <div class="bg-purple-900/20 border border-purple-700/40 rounded-xl px-5 py-3 text-center w-44"><div class="font-semibold text-white text-sm">CEO</div><div class="text-xs text-purple-300">/pensare-ceo</div></div>
+                <div class="bg-purple-900/20 border border-purple-700/40 rounded-xl px-5 py-3 text-center w-44"><div class="font-semibold text-white text-sm">Conselho</div><div class="text-xs text-purple-300">/pensare-conselho</div></div>
+              </div>
+            </template>
+          </div>
+          <div class="flex justify-center"><div class="w-px h-6 bg-gray-700"></div></div>
+        </div>
+
+        <!-- Tier 2: Heads -->
+        <div>
+          <div class="text-xs uppercase tracking-widest text-blue-400 font-semibold mb-2 ml-1">Tier 2 — Heads de Área</div>
+          <div class="flex flex-wrap gap-3 justify-center">
+            <template x-for="agent in agents.filter(a => a.tier === 'head')" :key="agent.id">
+              <div class="bg-blue-900/15 border border-blue-700/30 rounded-lg px-4 py-2.5 text-center cursor-pointer hover:bg-blue-900/30 transition-colors" @click="coreModal = agent">
+                <div class="font-medium text-white text-xs" x-text="agent.name.replace('Head ', '').replace('pensare-', '')"></div>
+                <div class="text-xs text-blue-300 mt-0.5" x-text="agent.command"></div>
+              </div>
+            </template>
+          </div>
+          <div class="flex justify-center"><div class="w-px h-6 bg-gray-700"></div></div>
+        </div>
+
+        <!-- Tier 3: Execution -->
+        <div>
+          <div class="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-2 ml-1">Tier 3 — Execução</div>
+          <div class="flex flex-wrap gap-3 justify-center">
+            <template x-for="agent in agents.filter(a => a.tier === 'execution')" :key="agent.id">
+              <div class="bg-gray-800/50 border border-gray-700/40 rounded-lg px-4 py-2.5 text-center cursor-pointer hover:bg-gray-800 transition-colors" @click="coreModal = agent">
+                <div class="font-medium text-white text-xs" x-text="agent.name"></div>
+                <div class="text-xs text-gray-500 mt-0.5" x-text="agent.command"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Core modal -->
+      <div x-show="coreModal" @click.self="coreModal = null" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-white" x-text="coreModal?.name"></h3>
+            <button @click="coreModal = null" class="text-gray-500 hover:text-white">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500 w-24">Comando</span>
+              <code class="bg-gray-800 px-2 py-1 rounded text-indigo-400 font-mono text-xs" x-text="coreModal?.command || '—'"></code>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500 w-24">Tier</span>
+              <span class="text-gray-300" x-text="coreModal?.tier || '—'"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-500 w-24">Reports to</span>
+              <span class="text-gray-300" x-text="coreModal?.reports_to || '—'"></span>
+            </div>
+            <div>
+              <span class="text-gray-500 block mb-1">Descrição</span>
+              <p class="text-gray-300 leading-relaxed" x-text="coreModal?.description || '—'"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: ORCHESTRATOR ░░░░ -->
+    <section x-show="activeTab === 'orchestrator'" class="tab-enter">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Orchestrator</h1>
+          <p class="text-gray-500 text-sm mt-0.5">CLAUDE.md · boot sequence · regras de operação</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div class="xl:col-span-1 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-800 text-sm font-semibold text-gray-300">Arquivos</div>
+          <div class="p-2 space-y-0.5">
+            <template x-for="f in orchestratorFiles" :key="f.path">
+              <button @click="loadEditorFile(f.path, 'orchestrator')" :class="editorPath === f.path ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'" class="w-full text-left px-3 py-2 rounded text-sm transition-colors font-mono">
+                <span x-text="f.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="xl:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col" style="min-height:600px">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm text-gray-400 font-mono" x-text="editorPath || 'Selecione um arquivo'"></span>
+            <div class="flex gap-2">
+              <button x-show="editorMode === 'preview'" @click="editorMode = 'edit'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Editar</button>
+              <button x-show="editorMode === 'edit'" @click="editorMode = 'preview'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Preview</button>
+              <button x-show="editorMode === 'edit'" @click="saveEditorFile()" class="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-white">Salvar</button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto p-4">
+            <div x-show="editorMode === 'preview'" class="md-content" x-html="renderMarkdown(editorContent)"></div>
+            <textarea x-show="editorMode === 'edit'" x-model="editorContent" class="w-full h-full bg-transparent text-gray-300 font-mono text-sm resize-none focus:outline-none" style="min-height:500px"></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: AGENTS ░░░░░░ -->
+    <section x-show="activeTab === 'agents'" class="tab-enter space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Agentes</h1>
+          <p class="text-gray-500 text-sm mt-0.5" x-text="`${agents.length} agentes registrados`"></p>
+        </div>
+      </div>
+
+      <template x-for="tier in agentTiers" :key="tier.key">
+        <div x-show="agents.filter(a => a.tier === tier.key).length > 0">
+          <h2 class="text-xs uppercase tracking-widest font-semibold mb-3" :class="tier.color" x-text="tier.label"></h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <template x-for="agent in agents.filter(a => a.tier === tier.key)" :key="agent.id">
+              <div @click="agentModal = agent" class="bg-gray-900 border border-gray-800 rounded-xl p-4 cursor-pointer hover:border-gray-700 hover:bg-gray-800/50 transition-all group">
+                <div class="flex items-start justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold" :class="tier.bgColor" x-text="agent.name ? agent.name[0].toUpperCase() : 'A'"></div>
+                    <div>
+                      <div class="font-semibold text-white text-sm" x-text="agent.name || agent.id"></div>
+                      <div class="font-mono text-xs text-gray-500" x-text="agent.command"></div>
+                    </div>
+                  </div>
+                  <span class="text-xs px-2 py-0.5 rounded-full" :class="tier.badgeClass" x-text="agent.tier"></span>
+                </div>
+                <p class="text-xs text-gray-500 line-clamp-2 leading-relaxed" x-text="agent.description || 'Sem descrição.'"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Fallback for agents with unknown tiers -->
+      <template x-if="agents.filter(a => !['coordinator','c-suite','strategic','head','execution'].includes(a.tier)).length > 0">
+        <div>
+          <h2 class="text-xs uppercase tracking-widest font-semibold mb-3 text-gray-500">Outros</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <template x-for="agent in agents.filter(a => !['coordinator','c-suite','strategic','head','execution'].includes(a.tier))" :key="agent.id">
+              <div @click="agentModal = agent" class="bg-gray-900 border border-gray-800 rounded-xl p-4 cursor-pointer hover:border-gray-700">
+                <div class="font-semibold text-white text-sm" x-text="agent.name || agent.id"></div>
+                <div class="font-mono text-xs text-gray-500 mb-2" x-text="agent.command"></div>
+                <p class="text-xs text-gray-500 line-clamp-2" x-text="agent.description || 'Sem descrição.'"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Agent detail modal -->
+      <div x-show="agentModal" @click.self="agentModal = null" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[80vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-5">
+            <div>
+              <h3 class="text-lg font-bold text-white" x-text="agentModal?.name || agentModal?.id"></h3>
+              <code class="text-xs text-indigo-400" x-text="agentModal?.command"></code>
+            </div>
+            <button @click="agentModal = null" class="text-gray-500 hover:text-white">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-gray-800 rounded-lg p-3">
+                <div class="text-xs text-gray-500 mb-1">Tier</div>
+                <div class="text-white font-medium" x-text="agentModal?.tier || '—'"></div>
+              </div>
+              <div class="bg-gray-800 rounded-lg p-3">
+                <div class="text-xs text-gray-500 mb-1">Reports To</div>
+                <div class="text-white font-medium" x-text="agentModal?.reports_to || '—'"></div>
+              </div>
+              <div class="bg-gray-800 rounded-lg p-3">
+                <div class="text-xs text-gray-500 mb-1">Versão</div>
+                <div class="text-white font-medium" x-text="agentModal?.version || '—'"></div>
+              </div>
+              <div class="bg-gray-800 rounded-lg p-3">
+                <div class="text-xs text-gray-500 mb-1">Tools</div>
+                <div class="text-white font-medium text-xs" x-text="agentModal?.allowed_tools || '—'"></div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-2">Descrição</div>
+              <p class="text-gray-300 leading-relaxed" x-text="agentModal?.description || 'Sem descrição.'"></p>
+            </div>
+            <button @click="setTab('chat'); chatAgent = agentModal.id; agentModal = null" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">
+              Conversar com este agente →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: SKILLS ░░░░░░ -->
+    <section x-show="activeTab === 'skills'" class="tab-enter">
+      <h1 class="text-2xl font-bold text-white mb-2">Skills</h1>
+      <p class="text-gray-500 text-sm mb-6">Skills reutilizáveis do sistema.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <template x-for="agent in agents" :key="agent.id">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div class="font-semibold text-white text-sm mb-1" x-text="agent.name || agent.id"></div>
+            <div class="font-mono text-xs text-indigo-400 mb-2" x-text="agent.command"></div>
+            <p class="text-xs text-gray-500 leading-relaxed" x-text="agent.description || 'Sem descrição.'"></p>
+          </div>
+        </template>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: MEMORY ░░░░░░ -->
+    <section x-show="activeTab === 'memory'" class="tab-enter">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Memory</h1>
+          <p class="text-gray-500 text-sm mt-0.5">Arquivos de memória do sistema</p>
+        </div>
+        <button @click="newMemoryFile()" class="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Novo
+        </button>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <!-- File tree -->
+        <div class="xl:col-span-1 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-800 text-sm font-semibold text-gray-300">Arquivos</div>
+          <div class="p-2 space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto">
+            <template x-for="section in memoryTree.sections" :key="section.name">
+              <div>
+                <button @click="section._open = !section._open" class="w-full flex items-center gap-2 px-2 py-1 text-xs uppercase tracking-wide text-gray-500 hover:text-gray-300 font-semibold">
+                  <svg class="w-3 h-3 transition-transform" :class="section._open !== false ? 'rotate-90' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                  <span x-text="section.name"></span>
+                </button>
+                <div x-show="section._open !== false" class="ml-2 space-y-0.5 mt-0.5">
+                  <template x-for="f in section.files" :key="f.path">
+                    <button
+                      @click="loadEditorFile(f.path, 'memory')"
+                      :class="editorPath === f.path ? 'bg-indigo-600/20 text-indigo-400' : (f.exists ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-200' : 'text-gray-700 hover:bg-gray-800')"
+                      class="w-full text-left px-3 py-1.5 rounded text-xs transition-colors font-mono flex items-center gap-2"
+                    >
+                      <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      <span x-text="f.name" class="truncate"></span>
+                      <span x-show="!f.exists" class="ml-auto text-xs text-gray-700">novo</span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="xl:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col" style="min-height:600px">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm text-gray-400 font-mono truncate max-w-xs" x-text="editorPath || 'Selecione um arquivo'"></span>
+            <div class="flex gap-2 shrink-0">
+              <button x-show="editorMode === 'preview'" @click="editorMode = 'edit'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Editar</button>
+              <button x-show="editorMode === 'edit'" @click="editorMode = 'preview'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Preview</button>
+              <button x-show="editorMode === 'edit' && editorPath" @click="saveEditorFile()" class="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-white">Salvar</button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto p-4">
+            <div x-show="!editorPath" class="h-full flex items-center justify-center text-gray-600 text-sm">Selecione um arquivo para visualizar ou editar</div>
+            <div x-show="editorPath && editorMode === 'preview'" class="md-content" x-html="renderMarkdown(editorContent)"></div>
+            <textarea x-show="editorPath && editorMode === 'edit'" x-model="editorContent" class="w-full h-full bg-transparent text-gray-300 font-mono text-sm resize-none focus:outline-none" style="min-height:500px"></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: HEARTBEATS ░░░░░░ -->
+    <section x-show="activeTab === 'heartbeats'" class="tab-enter space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Heartbeats</h1>
+          <p class="text-gray-500 text-sm mt-0.5">Rotinas proativas e daemon de execução</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg" :class="daemonStatus.running ? 'bg-emerald-400/10 text-emerald-400' : 'bg-red-400/10 text-red-400'">
+            <span class="w-2 h-2 rounded-full" :class="daemonStatus.running ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'"></span>
+            <span x-text="daemonStatus.running ? 'Daemon rodando' : 'Daemon parado'"></span>
+            <span x-show="daemonStatus.pid" class="text-xs opacity-60" x-text="`(PID ${daemonStatus.pid})`"></span>
+          </span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <template x-for="(routine, i) in heartbeats" :key="i">
+          <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div class="flex items-start justify-between mb-3">
+              <div class="font-semibold text-white text-sm leading-tight" x-text="routine.name"></div>
+              <span class="text-xs px-2 py-0.5 rounded-full shrink-0 ml-2"
+                :class="routine.status === 'ok' ? 'bg-emerald-400/10 text-emerald-400' :
+                         routine.status === 'error' ? 'bg-red-400/10 text-red-400' :
+                         'bg-gray-700 text-gray-400'"
+                x-text="routine.status || 'pendente'">
+              </span>
+            </div>
+            <div class="space-y-1.5 text-xs">
+              <div class="flex items-center gap-2 text-gray-500" x-show="routine.schedule">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span x-text="routine.schedule"></span>
+              </div>
+              <div class="flex items-center gap-2 text-gray-600" x-show="routine.last_run">
+                <span>Último run:</span>
+                <span class="text-gray-400" x-text="routine.last_run ? formatTs(routine.last_run) : '—'"></span>
+              </div>
+              <div class="flex items-center gap-2 text-gray-600" x-show="routine.next_run">
+                <span>Próximo:</span>
+                <span class="text-indigo-400" x-text="routine.next_run ? formatTs(routine.next_run) : '—'"></span>
+              </div>
+            </div>
+            <p x-show="routine.description" class="text-xs text-gray-600 mt-3 leading-relaxed line-clamp-2" x-text="routine.description"></p>
+          </div>
+        </template>
+        <div x-show="heartbeats.length === 0" class="col-span-3 text-center text-gray-600 text-sm py-12">
+          Nenhuma rotina configurada em HEARTBEAT.md ainda.
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: TOOLS ░░░░░░ -->
+    <section x-show="activeTab === 'tools'" class="tab-enter">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Tools</h1>
+          <p class="text-gray-500 text-sm mt-0.5">TOOLS.md · registry de ferramentas</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div class="xl:col-span-1 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-gray-800 text-sm font-semibold text-gray-300">Arquivos</div>
+          <div class="p-2 space-y-0.5">
+            <template x-for="f in toolsFiles" :key="f.path">
+              <button @click="loadEditorFile(f.path, 'tools')" :class="editorPath === f.path ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'" class="w-full text-left px-3 py-2 rounded text-sm transition-colors font-mono">
+                <span x-text="f.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <div class="xl:col-span-2 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col" style="min-height:600px">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm text-gray-400 font-mono" x-text="editorPath || 'Selecione um arquivo'"></span>
+            <div class="flex gap-2">
+              <button x-show="editorMode === 'preview'" @click="editorMode = 'edit'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Editar</button>
+              <button x-show="editorMode === 'edit'" @click="editorMode = 'preview'" class="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-300">Preview</button>
+              <button x-show="editorMode === 'edit'" @click="saveEditorFile()" class="text-xs px-3 py-1 bg-indigo-600 hover:bg-indigo-500 rounded text-white">Salvar</button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-auto p-4">
+            <div x-show="editorMode === 'preview'" class="md-content" x-html="renderMarkdown(editorContent)"></div>
+            <textarea x-show="editorMode === 'edit'" x-model="editorContent" class="w-full h-full bg-transparent text-gray-300 font-mono text-sm resize-none focus:outline-none" style="min-height:500px"></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: SOUL ░░░░░░ -->
+    <section x-show="activeTab === 'soul'" class="tab-enter space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Soul</h1>
+          <p class="text-gray-500 text-sm mt-0.5">SOUL.md · IDENTITY.md · fundamentos do sistema</p>
+        </div>
+        <button @click="loadSoul()" class="text-sm text-gray-400 hover:text-white bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-800">Recarregar</button>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <!-- SOUL -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-indigo-400">SOUL.md</h2>
+            <button @click="loadEditorFile('SOUL.md', 'soul'); setTab('memory')" class="text-xs text-gray-500 hover:text-gray-300">Editar →</button>
+          </div>
+          <div class="p-5">
+            <template x-for="section in soulData.soul?.sections || []" :key="section.title">
+              <div class="mb-4">
+                <button @click="section._open = !section._open" class="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-white mb-2 w-full text-left">
+                  <svg class="w-3.5 h-3.5 transition-transform shrink-0" :class="section._open !== false ? '' : '-rotate-90'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  <span x-text="section.title"></span>
+                </button>
+                <div x-show="section._open !== false" class="md-content text-sm ml-5" x-html="renderMarkdown(section.body)"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- IDENTITY -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-purple-400">IDENTITY.md</h2>
+            <button @click="loadEditorFile('IDENTITY.md', 'soul'); setTab('memory')" class="text-xs text-gray-500 hover:text-gray-300">Editar →</button>
+          </div>
+          <div class="p-5">
+            <template x-for="section in soulData.identity?.sections || []" :key="section.title">
+              <div class="mb-4">
+                <button @click="section._open = !section._open" class="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-white mb-2 w-full text-left">
+                  <svg class="w-3.5 h-3.5 transition-transform shrink-0" :class="section._open !== false ? '' : '-rotate-90'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                  <span x-text="section.title"></span>
+                </button>
+                <div x-show="section._open !== false" class="md-content text-sm ml-5" x-html="renderMarkdown(section.body)"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: TASKS ░░░░░░ -->
+    <section x-show="activeTab === 'tasks'" class="tab-enter space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-white">Tasks</h1>
+          <p class="text-gray-500 text-sm mt-0.5">Kanban do MEMORY.md · Next Steps</p>
+        </div>
+        <button @click="showNewTask = true" class="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Nova task
+        </button>
+      </div>
+
+      <!-- Kanban Board -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Pendente -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+          @dragover.prevent="$el.classList.add('drag-over')"
+          @dragleave="$el.classList.remove('drag-over')"
+          @drop.prevent="$el.classList.remove('drag-over'); dropTask($event, 'pending')"
+        >
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+            <h3 class="text-sm font-semibold text-gray-300">Pendente</h3>
+            <span class="ml-auto text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full" x-text="tasks.pending.length"></span>
+          </div>
+          <div class="p-3 space-y-2 min-h-32">
+            <template x-for="(task, i) in tasks.pending" :key="task.title + i">
+              <div draggable="true" @dragstart="dragTask($event, task, 'pending')" class="kanban-card bg-gray-800 border border-gray-700 rounded-lg p-3 hover:border-gray-600">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm text-gray-200 leading-snug" x-text="task.title"></p>
+                  <span class="shrink-0 text-xs px-1.5 py-0.5 rounded font-medium" :class="priorityClass(task.priority)" x-text="task.priority"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Em Execução -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+          @dragover.prevent="$el.classList.add('drag-over')"
+          @dragleave="$el.classList.remove('drag-over')"
+          @drop.prevent="$el.classList.remove('drag-over'); dropTask($event, 'in_progress')"
+        >
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+            <h3 class="text-sm font-semibold text-gray-300">Em Execução</h3>
+            <span class="ml-auto text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full" x-text="tasks.in_progress.length"></span>
+          </div>
+          <div class="p-3 space-y-2 min-h-32">
+            <template x-for="(task, i) in tasks.in_progress" :key="task.title + i">
+              <div draggable="true" @dragstart="dragTask($event, task, 'in_progress')" class="kanban-card bg-gray-800 border border-indigo-800/50 rounded-lg p-3 hover:border-indigo-700">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm text-gray-200 leading-snug" x-text="task.title"></p>
+                  <span class="shrink-0 text-xs px-1.5 py-0.5 rounded font-medium" :class="priorityClass(task.priority)" x-text="task.priority"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Concluído -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+          @dragover.prevent="$el.classList.add('drag-over')"
+          @dragleave="$el.classList.remove('drag-over')"
+          @drop.prevent="$el.classList.remove('drag-over'); dropTask($event, 'done')"
+        >
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <h3 class="text-sm font-semibold text-gray-300">Concluído</h3>
+            <span class="ml-auto text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full" x-text="tasks.done.length"></span>
+          </div>
+          <div class="p-3 space-y-2 min-h-32">
+            <template x-for="(task, i) in tasks.done" :key="task.title + i">
+              <div draggable="true" @dragstart="dragTask($event, task, 'done')" class="kanban-card bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 opacity-60 hover:opacity-80">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm text-gray-400 line-through leading-snug" x-text="task.title"></p>
+                  <span class="shrink-0 text-xs px-1.5 py-0.5 rounded font-medium" :class="priorityClass(task.priority)" x-text="task.priority"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- New task modal -->
+      <div x-show="showNewTask" @click.self="showNewTask = false" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+          <h3 class="text-lg font-bold text-white mb-5">Nova Task</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Título</label>
+              <input x-model="newTask.title" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500" placeholder="Descrição da task..." />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Prioridade</label>
+              <select x-model="newTask.priority" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <option value="urgent">Urgente</option>
+                <option value="high">Alta</option>
+                <option value="medium" selected>Média</option>
+                <option value="low">Baixa</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button @click="showNewTask = false" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg py-2 text-sm">Cancelar</button>
+            <button @click="createTask()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg py-2 text-sm font-medium">Criar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ TAB: CHAT ░░░░░░ -->
+    <section x-show="activeTab === 'chat'" class="tab-enter h-[calc(100vh-120px)] flex gap-4">
+
+      <!-- Conversations sidebar -->
+      <div class="w-56 shrink-0 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-300">Conversas</span>
+          <button @click="newConversation()" class="text-gray-500 hover:text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+          <template x-for="(conv, i) in conversations" :key="conv.id">
+            <button
+              @click="activeConvId = conv.id"
+              :class="activeConvId === conv.id ? 'bg-indigo-600/20 text-indigo-400' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
+              class="w-full text-left px-3 py-2 rounded text-xs font-medium transition-colors truncate"
+              x-text="conv.title"
+            ></button>
+          </template>
+          <div x-show="conversations.length === 0" class="text-center text-gray-600 text-xs py-8">Nenhuma conversa</div>
+        </div>
+      </div>
+
+      <!-- Chat main -->
+      <div class="flex-1 bg-gray-900 border border-gray-800 rounded-xl flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="px-5 py-3 border-b border-gray-800 flex items-center gap-3">
+          <select x-model="chatAgent" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="">Selecionar agente...</option>
+            <template x-for="agent in agents" :key="agent.id">
+              <option :value="agent.id" x-text="agent.command + ' — ' + (agent.name || agent.id)"></option>
+            </template>
+          </select>
+          <span x-show="chatAgent" class="text-xs text-gray-500" x-text="agents.find(a => a.id === chatAgent)?.description?.slice(0, 60) + '...' || ''"></span>
+        </div>
+
+        <!-- Messages -->
+        <div class="flex-1 overflow-y-auto p-5 space-y-4" x-ref="chatMessages">
+          <template x-for="(msg, i) in activeConversation?.messages || []" :key="i">
+            <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+              <div
+                :class="msg.role === 'user'
+                  ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-sm max-w-lg'
+                  : 'bg-gray-800 text-gray-200 rounded-2xl rounded-tl-sm max-w-2xl'"
+                class="px-4 py-3 text-sm leading-relaxed"
+              >
+                <div x-show="msg.role === 'agent'" class="text-xs text-indigo-400 font-semibold mb-1.5" x-text="'/' + msg.agent"></div>
+                <div x-html="msg.role === 'agent' ? renderMarkdown(msg.content) : escapeHtml(msg.content)"></div>
+                <div class="text-xs opacity-50 mt-2 text-right" x-text="formatTs(msg.ts)"></div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Loading -->
+          <div x-show="chatLoading" class="flex justify-start">
+            <div class="bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2">
+              <span class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+              <span class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+              <span class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!activeConversation?.messages?.length && !chatLoading" class="h-full flex flex-col items-center justify-center text-center text-gray-600 py-20">
+            <svg class="w-12 h-12 mb-4 opacity-30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>
+            <p class="text-sm">Selecione um agente e envie uma mensagem.</p>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="p-4 border-t border-gray-800">
+          <div class="flex gap-3">
+            <textarea
+              x-model="chatInput"
+              @keydown.meta.enter="sendMessage()"
+              @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
+              placeholder="Mensagem... (Enter para enviar, Shift+Enter para nova linha)"
+              class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none"
+              rows="2"
+            ></textarea>
+            <button
+              @click="sendMessage()"
+              :disabled="chatLoading || !chatInput.trim() || !chatAgent"
+              class="self-end bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl px-4 py-3 transition-colors"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ════════════════════════════════════════════════════ TOAST ════ -->
+<div class="fixed bottom-6 right-6 z-50 space-y-2" aria-live="polite">
+  <template x-for="(toast, i) in toasts" :key="toast.id">
+    <div
+      x-show="toast.visible"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-2"
+      x-transition:enter-end="opacity-100 translate-y-0"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium"
+      :class="toast.type === 'success' ? 'bg-emerald-900 border border-emerald-700 text-emerald-200' :
+               toast.type === 'error' ? 'bg-red-900 border border-red-700 text-red-200' :
+               'bg-gray-800 border border-gray-700 text-gray-200'"
+      x-text="toast.message"
+    ></div>
+  </template>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ SCRIPT ════ -->
+<script>
+function pensareOS() {
+  return {
+    // ─── State ───────────────────────────────────────────────────────
+    activeTab: 'dashboard',
+    searchQuery: '',
+    metrics: {},
+    recentEvents: [],
+    agents: [],
+    memoryTree: { sections: [] },
+    heartbeats: [],
+    daemonStatus: { running: false, pid: null },
+    soulData: {},
+    tasks: { pending: [], in_progress: [], done: [] },
+    chartData: [],
+
+    // Editor shared state
+    editorPath: '',
+    editorContent: '',
+    editorMode: 'preview',
+    editorContext: '',
+
+    // Modals
+    agentModal: null,
+    coreModal: null,
+    showNewTask: false,
+    newTask: { title: '', priority: 'medium' },
+
+    // Chat
+    chatAgent: '',
+    chatInput: '',
+    chatLoading: false,
+    conversations: [],
+    activeConvId: null,
+
+    // Toasts
+    toasts: [],
+    toastCounter: 0,
+
+    loadingMetrics: false,
+
+    // ─── Nav ─────────────────────────────────────────────────────────
+    navItems: [
+      { id: 'dashboard',    label: 'Dashboard',    icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>' },
+      { id: 'core',         label: 'Core',         icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>' },
+      { id: 'orchestrator', label: 'Orchestrator', icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' },
+      { id: 'agents',       label: 'Agents',       icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>' },
+      { id: 'skills',       label: 'Skills',       icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' },
+      { id: 'memory',       label: 'Memory',       icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' },
+      { id: 'heartbeats',   label: 'Heartbeats',   icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>' },
+      { id: 'tools',        label: 'Tools',        icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/></svg>' },
+      { id: 'soul',         label: 'Soul',         icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>' },
+      { id: 'tasks',        label: 'Tasks',        icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>' },
+      { id: 'chat',         label: 'Chat',         icon: '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>' },
+    ],
+
+    agentTiers: [
+      { key: 'coordinator', label: 'Tier 0 — Coordinator', color: 'text-indigo-400', bgColor: 'bg-indigo-700', badgeClass: 'bg-indigo-900/50 text-indigo-400' },
+      { key: 'c-suite',     label: 'Tier 1 — C-Suite',     color: 'text-purple-400', bgColor: 'bg-purple-700', badgeClass: 'bg-purple-900/50 text-purple-400' },
+      { key: 'strategic',   label: 'Tier 1 — Estratégico', color: 'text-purple-400', bgColor: 'bg-purple-700', badgeClass: 'bg-purple-900/50 text-purple-400' },
+      { key: 'head',        label: 'Tier 2 — Heads',       color: 'text-blue-400',   bgColor: 'bg-blue-700',   badgeClass: 'bg-blue-900/50 text-blue-400' },
+      { key: 'execution',   label: 'Tier 3 — Execução',    color: 'text-gray-400',   bgColor: 'bg-gray-700',   badgeClass: 'bg-gray-700 text-gray-400' },
+    ],
+
+    metricCards: [
+      { key: 'leads_hoje', label: 'Leads hoje',  default: '0',     trend: 'Sem dados', trendColor: 'text-gray-600' },
+      { key: 'sql',        label: 'SQL',          default: '0',     trend: 'Sem dados', trendColor: 'text-gray-600' },
+      { key: 'vendas',     label: 'Vendas',       default: '0',     trend: 'Sem dados', trendColor: 'text-gray-600' },
+      { key: 'receita',    label: 'Receita',      default: 'R$ 0',  trend: 'Sem dados', trendColor: 'text-gray-600' },
+      { key: 'cpl',        label: 'CPL',          default: '—',     trend: 'Sem dados', trendColor: 'text-gray-600' },
+      { key: 'conversao',  label: 'Conversão',    default: '0%',    trend: 'Sem dados', trendColor: 'text-gray-600' },
+    ],
+
+    orchestratorFiles: [
+      { name: 'CLAUDE.md',     path: 'CLAUDE.md' },
+      { name: 'AGENTS.md',     path: 'AGENTS.md' },
+      { name: 'HEARTBEAT.md',  path: 'HEARTBEAT.md' },
+    ],
+
+    toolsFiles: [
+      { name: 'TOOLS.md',   path: 'TOOLS.md' },
+      { name: 'MEMORY.md',  path: 'MEMORY.md' },
+    ],
+
+    // Drag state
+    draggedTask: null,
+    draggedFrom: null,
+
+    // ─── Init ────────────────────────────────────────────────────────
+    async init() {
+      await Promise.all([
+        this.loadDashboard(),
+        this.loadAgents(),
+        this.loadMemoryTree(),
+        this.loadTasks(),
+        this.loadHeartbeats(),
+        this.loadSoul(),
+      ])
+      this.newConversation()
+    },
+
+    setTab(tab) {
+      this.activeTab = tab
+      this.editorPath = ''
+      this.editorContent = ''
+      this.editorMode = 'preview'
+    },
+
+    // ─── Dashboard ───────────────────────────────────────────────────
+    async loadDashboard() {
+      this.loadingMetrics = true
+      try {
+        const [mRes, eRes] = await Promise.all([
+          fetch('/api/metrics'),
+          fetch('/api/events'),
+        ])
+        this.metrics = await mRes.json()
+        const evData = await eRes.json()
+        this.recentEvents = evData.events || []
+        this.buildChart()
+      } catch (e) {
+        console.error('Dashboard load error:', e)
+      } finally {
+        this.loadingMetrics = false
+      }
+    },
+
+    buildChart() {
+      const days = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const label = d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')
+        const dateStr = d.toISOString().slice(0, 10)
+        const count = this.recentEvents.filter(e => (e.ts || '').startsWith(dateStr)).length
+        days.push({ label, dateStr, count })
+      }
+      const max = Math.max(...days.map(d => d.count), 1)
+      this.chartData = days.map(d => ({
+        ...d,
+        pct: Math.max(4, Math.round((d.count / max) * 100)),
+      }))
+    },
+
+    // ─── Agents ──────────────────────────────────────────────────────
+    async loadAgents() {
+      try {
+        const res = await fetch('/api/agents')
+        const data = await res.json()
+        this.agents = data.agents || []
+        const badge = this.agents.length
+        const nav = this.navItems.find(n => n.id === 'agents')
+        if (nav) nav.badge = badge
+      } catch (e) {
+        console.error('Agents load error:', e)
+      }
+    },
+
+    // ─── Memory ──────────────────────────────────────────────────────
+    async loadMemoryTree() {
+      try {
+        const res = await fetch('/api/memory/tree')
+        const data = await res.json()
+        this.memoryTree = data
+        // default open
+        for (const s of this.memoryTree.sections || []) {
+          s._open = true
+        }
+      } catch (e) {
+        console.error('Memory tree error:', e)
+      }
+    },
+
+    async loadEditorFile(path, context) {
+      this.editorPath = path
+      this.editorContext = context
+      this.editorMode = 'preview'
+      try {
+        const res = await fetch('/api/memory/file?path=' + encodeURIComponent(path))
+        const data = await res.json()
+        this.editorContent = data.content || ''
+      } catch (e) {
+        this.editorContent = ''
+      }
+    },
+
+    async saveEditorFile() {
+      try {
+        const res = await fetch('/api/memory/file', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: this.editorPath, content: this.editorContent }),
+        })
+        const data = await res.json()
+        if (data.ok) {
+          this.showToast('Arquivo salvo com sucesso', 'success')
+        } else {
+          this.showToast('Erro ao salvar arquivo', 'error')
+        }
+      } catch (e) {
+        this.showToast('Erro ao salvar: ' + e.message, 'error')
+      }
+    },
+
+    newMemoryFile() {
+      const name = prompt('Nome do arquivo (ex: memory/shared/novo.md):')
+      if (!name) return
+      this.editorPath = name
+      this.editorContent = `# ${name.split('/').pop().replace('.md', '')}\n\n`
+      this.editorMode = 'edit'
+    },
+
+    // ─── Tasks ───────────────────────────────────────────────────────
+    async loadTasks() {
+      try {
+        const res = await fetch('/api/tasks')
+        this.tasks = await res.json()
+      } catch (e) {
+        console.error('Tasks load error:', e)
+      }
+    },
+
+    async createTask() {
+      if (!this.newTask.title.trim()) return
+      try {
+        await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...this.newTask, status: 'pending' }),
+        })
+        this.showNewTask = false
+        this.newTask = { title: '', priority: 'medium' }
+        await this.loadTasks()
+        this.showToast('Task criada', 'success')
+      } catch (e) {
+        this.showToast('Erro ao criar task', 'error')
+      }
+    },
+
+    priorityClass(p) {
+      const map = {
+        urgent: 'bg-red-900/50 text-red-400',
+        high:   'bg-orange-900/50 text-orange-400',
+        medium: 'bg-yellow-900/50 text-yellow-400',
+        low:    'bg-gray-700 text-gray-400',
+      }
+      return map[p] || map.medium
+    },
+
+    dragTask(event, task, from) {
+      this.draggedTask = task
+      this.draggedFrom = from
+      event.dataTransfer.effectAllowed = 'move'
+    },
+
+    dropTask(event, to) {
+      if (!this.draggedTask || this.draggedFrom === to) return
+      // Remove from source
+      this.tasks[this.draggedFrom] = this.tasks[this.draggedFrom].filter(t => t.title !== this.draggedTask.title)
+      // Add to target
+      this.tasks[to] = [...this.tasks[to], this.draggedTask]
+      this.draggedTask = null
+      this.draggedFrom = null
+    },
+
+    // ─── Heartbeats ──────────────────────────────────────────────────
+    async loadHeartbeats() {
+      try {
+        const [hRes, dRes] = await Promise.all([
+          fetch('/api/heartbeats'),
+          fetch('/api/heartbeat/status'),
+        ])
+        const hData = await hRes.json()
+        this.heartbeats = hData.routines || []
+        this.daemonStatus = await dRes.json()
+      } catch (e) {
+        console.error('Heartbeats error:', e)
+      }
+    },
+
+    // ─── Soul ────────────────────────────────────────────────────────
+    async loadSoul() {
+      try {
+        const res = await fetch('/api/soul')
+        this.soulData = await res.json()
+        // default open first 3 sections
+        for (const doc of Object.values(this.soulData)) {
+          if (doc.sections) {
+            doc.sections.forEach((s, i) => { s._open = i < 3 })
+          }
+        }
+      } catch (e) {
+        console.error('Soul load error:', e)
+      }
+    },
+
+    // ─── Chat ────────────────────────────────────────────────────────
+    newConversation() {
+      const id = 'conv-' + Date.now()
+      const conv = { id, title: 'Nova conversa', messages: [] }
+      this.conversations.unshift(conv)
+      this.activeConvId = id
+    },
+
+    get activeConversation() {
+      return this.conversations.find(c => c.id === this.activeConvId)
+    },
+
+    async sendMessage() {
+      const content = this.chatInput.trim()
+      if (!content || !this.chatAgent || this.chatLoading) return
+
+      const conv = this.activeConversation
+      if (!conv) return
+
+      // Push user message
+      conv.messages.push({ role: 'user', content, ts: new Date().toISOString() })
+      conv.title = content.slice(0, 30) + (content.length > 30 ? '…' : '')
+      this.chatInput = ''
+      this.chatLoading = true
+
+      this.$nextTick(() => {
+        const el = this.$refs.chatMessages
+        if (el) el.scrollTop = el.scrollHeight
+      })
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent: this.chatAgent,
+            message: content,
+            conversation_id: this.activeConvId,
+          }),
+        })
+        const data = await res.json()
+        conv.messages.push({
+          role: 'agent',
+          agent: this.chatAgent,
+          content: data.response || '(sem resposta)',
+          ts: data.timestamp,
+        })
+      } catch (e) {
+        conv.messages.push({
+          role: 'agent',
+          agent: 'system',
+          content: 'Erro ao conectar ao backend: ' + e.message,
+          ts: new Date().toISOString(),
+        })
+      } finally {
+        this.chatLoading = false
+        this.$nextTick(() => {
+          const el = this.$refs.chatMessages
+          if (el) el.scrollTop = el.scrollHeight
+        })
+      }
+    },
+
+    // ─── Markdown renderer (no external lib) ─────────────────────────
+    renderMarkdown(text) {
+      if (!text) return ''
+      let html = this.escapeHtmlRaw(text)
+
+      // Code blocks (before inline code)
+      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code class="language-${lang || 'text'}">${code.trim()}</code></pre>`
+      )
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Headers
+      html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      // Bold + italic
+      html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+      html = html.replace(/__(.+?)__/g, '<strong>$1</strong>')
+      html = html.replace(/_(.+?)_/g, '<em>$1</em>')
+      // Blockquote
+      html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
+      // HR
+      html = html.replace(/^---+$/gm, '<hr>')
+      // Tables
+      html = html.replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, (match, header, rows) => {
+        const ths = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('')
+        const trs = rows.trim().split('\n').map(row => {
+          const tds = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('')
+          return `<tr>${tds}</tr>`
+        }).join('')
+        return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`
+      })
+      // Unordered lists (simple)
+      html = html.replace(/^(\s*[-*+] .+(\n|$))+/gm, match => {
+        const items = match.trim().split('\n').map(line => {
+          const content = line.replace(/^\s*[-*+] /, '')
+          return `<li>${content}</li>`
+        }).join('')
+        return `<ul>${items}</ul>`
+      })
+      // Ordered lists
+      html = html.replace(/^(\s*\d+\. .+(\n|$))+/gm, match => {
+        const items = match.trim().split('\n').map(line => {
+          const content = line.replace(/^\s*\d+\. /, '')
+          return `<li>${content}</li>`
+        }).join('')
+        return `<ol>${items}</ol>`
+      })
+      // Links
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+      // Paragraphs
+      html = html.replace(/\n{2,}/g, '</p><p>')
+      html = '<p>' + html + '</p>'
+      // Cleanup double-wrapping
+      html = html.replace(/<p>(<h[123]>)/g, '$1')
+      html = html.replace(/(<\/h[123]>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<pre>)/g, '$1')
+      html = html.replace(/(<\/pre>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<ul>)/g, '$1')
+      html = html.replace(/(<\/ul>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<ol>)/g, '$1')
+      html = html.replace(/(<\/ol>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<table>)/g, '$1')
+      html = html.replace(/(<\/table>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<blockquote>)/g, '$1')
+      html = html.replace(/(<\/blockquote>)<\/p>/g, '$1')
+      html = html.replace(/<p>(<hr>)<\/p>/g, '$1')
+      html = html.replace(/<p>\s*<\/p>/g, '')
+
+      return html
+    },
+
+    escapeHtmlRaw(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+    },
+
+    escapeHtml(text) {
+      return this.escapeHtmlRaw(String(text || ''))
+        .replace(/\n/g, '<br>')
+    },
+
+    // ─── Utils ───────────────────────────────────────────────────────
+    formatTs(ts) {
+      if (!ts) return '—'
+      try {
+        const d = new Date(ts)
+        return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      } catch {
+        return ts
+      }
+    },
+
+    showToast(message, type = 'info') {
+      const id = ++this.toastCounter
+      const toast = { id, message, type, visible: true }
+      this.toasts.push(toast)
+      setTimeout(() => {
+        toast.visible = false
+        setTimeout(() => {
+          this.toasts = this.toasts.filter(t => t.id !== id)
+        }, 300)
+      }, 3500)
+    },
+  }
+}
+</script>
+</body>
+</html>

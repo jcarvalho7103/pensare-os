@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+# pensare-status — Retorna status atual da sessão do Pensare OS.
+# Usage: pensare-status
+# Lê as últimas 20 linhas do log e determina o estado geral do sistema.
+
+import json
+import os
+import sys
+from collections import deque
+
+LOG_FILE = "/Users/alicycarvalho/pensare-os/logs/events.ndjson"
+TAIL_LINES = 20
+
+
+def tail_lines(path: str, n: int) -> list[str]:
+    """Lê as últimas N linhas de um arquivo sem carregar tudo na memória."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return list(deque(f, maxlen=n))
+
+
+def parse_events(lines: list[str]) -> list[dict]:
+    """Parseia linhas NDJSON, ignorando linhas inválidas."""
+    events = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    return events
+
+
+def determine_status(events: list[dict]) -> tuple[str, str, str, str]:
+    """
+    Retorna (status, last_agent, last_action, summary).
+
+    Regras de prioridade (da mais grave para a menos grave):
+      - blocked: existe evento blocked sem complete subsequente do mesmo agente
+      - error: existe evento error sem complete subsequente
+      - degraded: houve erro mas a sessão continuou (há complete após o erro)
+      - ok: nenhum erro ou bloqueio
+    """
+    if not events:
+        return ("ok", "", "", "Nenhum evento registrado.")
+
+    last = events[-1]
+    last_agent = last.get("agent", "")
+    last_action = last.get("action", "")
+
+    has_error = False
+    has_blocked = False
+    resolved_agents: set[str] = set()
+
+    for ev in events:
+        agent = ev.get("agent", "")
+        action = ev.get("action", "")
+        if action == "complete":
+            resolved_agents.add(agent)
+        elif action == "error":
+            has_error = True
+        elif action == "blocked":
+            has_blocked = True
+
+    # Blocked sem resolução
+    unresolved_blocked = has_blocked and not all(
+        ev.get("action") != "blocked" or ev.get("agent") in resolved_agents
+        for ev in events
+    )
+
+    if unresolved_blocked:
+        status = "blocked"
+        summary = f"Agente bloqueado sem resolução. Último: {last_agent}/{last_action}."
+    elif has_error and not all(
+        ev.get("action") != "error" or ev.get("agent") in resolved_agents
+        for ev in events
+    ):
+        status = "error"
+        summary = f"Erro crítico não resolvido. Último: {last_agent}/{last_action}."
+    elif has_error:
+        status = "degraded"
+        summary = f"Houve erros mas a sessão continuou. Último: {last_agent}/{last_action}."
+    else:
+        status = "ok"
+        summary = f"Sessão saudável. Último: {last_agent}/{last_action}."
+
+    return (status, last_agent, last_action, summary)
+
+
+def main():
+    lines = tail_lines(LOG_FILE, TAIL_LINES)
+    events = parse_events(lines)
+    status, last_agent, last_action, summary = determine_status(events)
+
+    result = {
+        "status": status,
+        "last_agent": last_agent,
+        "last_action": last_action,
+        "summary": summary,
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
