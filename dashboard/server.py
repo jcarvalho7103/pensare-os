@@ -24,7 +24,9 @@ from pydantic import BaseModel
 # Setup
 # ---------------------------------------------------------------------------
 
-WORKSPACE_ROOT = Path(os.environ.get("PENSARE_WORKSPACE", "/Users/alicycarvalho/pensare-os"))
+# Detecta workspace: env var > /var/task (Vercel) > dir local
+_default_workspace = Path(__file__).resolve().parent.parent
+WORKSPACE_ROOT = Path(os.environ.get("PENSARE_WORKSPACE", str(_default_workspace)))
 DASHBOARD_DIR = WORKSPACE_ROOT / "dashboard"
 SKILLS_DIR = WORKSPACE_ROOT / ".claude" / "skills"
 LOGS_DIR = WORKSPACE_ROOT / "logs"
@@ -53,15 +55,20 @@ app = FastAPI(title="Pensare OS Dashboard", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8360", "http://127.0.0.1:8360"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# StaticFiles mount opcional — só monta se o dir existe e é gravável
 static_path = DASHBOARD_DIR / "static"
-static_path.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+try:
+    static_path.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+except (OSError, PermissionError):
+    # Em ambientes read-only (Vercel) o mkdir falha — sem problema, segue sem static mount
+    pass
 
 
 # ---------------------------------------------------------------------------
