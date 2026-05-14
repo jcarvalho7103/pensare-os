@@ -8,11 +8,11 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Any
 
+import anthropic
 import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -509,6 +509,58 @@ async def get_soul():
 
 
 # ---------------------------------------------------------------------------
+# Claude API client + agent system prompt builder
+# ---------------------------------------------------------------------------
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+
+
+def build_agent_system_prompt(agent: str) -> str:
+    """Build a system prompt for the given agent from SKILL.md + SOUL.md + IDENTITY.md."""
+    parts: list[str] = []
+
+    # 1. Soul + Identity (shared context for all agents)
+    soul = safe_read(SOUL_FILE)
+    identity = safe_read(IDENTITY_FILE)
+    if soul:
+        parts.append(soul)
+    if identity:
+        parts.append(identity)
+
+    # 2. Agent-specific SKILL.md (strip YAML frontmatter, keep the prompt body)
+    skill_file = SKILLS_DIR / agent / "SKILL.md"
+    if skill_file.exists():
+        text = safe_read(skill_file)
+        # Strip frontmatter
+        if text.startswith("---"):
+            fm_parts = text.split("---", 2)
+            body = fm_parts[2].strip() if len(fm_parts) >= 3 else text
+        else:
+            body = text
+        parts.append(body)
+
+    # 3. Business context
+    empresa = safe_read(CONTEXTO_DIR / "empresa.md")
+    mercado = safe_read(CONTEXTO_DIR / "mercado.md")
+    if empresa:
+        parts.append(f"## Contexto da Empresa\n\n{empresa}")
+    if mercado:
+        parts.append(f"## Contexto de Mercado\n\n{mercado}")
+
+    # 4. Current memory state (abbreviated)
+    memory = safe_read(MEMORY_FILE)
+    if memory:
+        # Keep only first 2000 chars to avoid bloating the prompt
+        parts.append(f"## Estado Atual da Memória\n\n{memory[:2000]}")
+
+    if not parts:
+        return f"Você é o agente {agent} do Pensare OS. Responda em português."
+
+    return "\n\n---\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # POST /api/chat
 # ---------------------------------------------------------------------------
 
@@ -525,24 +577,28 @@ async def post_chat(req: ChatRequest):
     if not agent.startswith("pensare"):
         raise HTTPException(status_code=400, detail="Only pensare-* agents allowed")
 
-    prompt = f"/{agent} {req.message}"
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="ANTHROPIC_API_KEY not configured. Set it as environment variable in Vercel.",
+        )
+
     ts = datetime.now(timezone.utc).isoformat()
+    system_prompt = build_agent_system_prompt(agent)
 
     try:
-        result = subprocess.run(
-            ["claude", "--dangerously-skip-permissions", "--print", prompt],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            cwd=str(WORKSPACE_ROOT),
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": req.message}],
         )
-        response = result.stdout.strip() if result.stdout else result.stderr.strip()
-        if not response:
-            response = "(sem resposta)"
-    except subprocess.TimeoutExpired:
-        response = "Timeout: o agente demorou mais de 120s para responder."
-    except FileNotFoundError:
-        response = "Erro: `claude` CLI não encontrado no PATH."
+        response = message.content[0].text if message.content else "(sem resposta)"
+    except anthropic.AuthenticationError:
+        response = "Erro: ANTHROPIC_API_KEY inválida."
+    except anthropic.RateLimitError:
+        response = "Erro: rate limit atingido na API. Tente novamente em alguns segundos."
     except Exception as e:
         response = f"Erro ao invocar agente: {e}"
 
@@ -557,27 +613,8 @@ async def post_chat(req: ChatRequest):
 
 @app.get("/api/heartbeat/status")
 async def get_heartbeat_status():
-    try:
-        result = subprocess.run(
-            ["launchctl", "list"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        running = "pensareos" in result.stdout.lower()
-        pid = None
-        if running:
-            for line in result.stdout.splitlines():
-                if "pensareos" in line.lower():
-                    parts = line.split()
-                    try:
-                        pid = int(parts[0]) if parts[0] != "-" else None
-                    except Exception:
-                        pass
-                    break
-        return {"running": running, "pid": pid}
-    except Exception:
-        return {"running": False, "pid": None}
+    """In serverless mode, heartbeat daemon is not available."""
+    return {"running": False, "pid": None, "mode": "serverless"}
 
 
 # ---------------------------------------------------------------------------
