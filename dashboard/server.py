@@ -573,38 +573,52 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def post_chat(req: ChatRequest):
-    # Sanitize agent name
+    import subprocess
+    import shutil
+
     agent = re.sub(r"[^a-z0-9\-]", "", req.agent.lower())
     if not agent.startswith("pensare"):
         raise HTTPException(status_code=400, detail="Only pensare-* agents allowed")
 
-    if not OPENAI_API_KEY:
+    ts = datetime.now(timezone.utc).isoformat()
+
+    # Local mode: use Claude Code CLI
+    claude_bin = shutil.which("claude") or shutil.which("claude.cmd")
+    if claude_bin:
+        prompt = f"/{agent} {req.message}"
+        try:
+            result = subprocess.run(
+                [claude_bin, "-p", prompt],
+                capture_output=True, text=True, timeout=120,
+                cwd=str(WORKSPACE_ROOT),
+            )
+            response = result.stdout.strip() or result.stderr.strip() or "(sem resposta)"
+        except subprocess.TimeoutExpired:
+            response = "Erro: timeout de 120s atingido."
+        except Exception as e:
+            response = f"Erro ao invocar Claude CLI: {e}"
+    elif OPENAI_API_KEY:
+        # Fallback: OpenAI API (Vercel)
+        system_prompt = build_agent_system_prompt(agent)
+        try:
+            client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            completion = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                max_tokens=4096,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": req.message},
+                ],
+            )
+            choice = completion.choices[0] if completion.choices else None
+            response = choice.message.content if choice and choice.message.content else "(sem resposta)"
+        except Exception as e:
+            response = f"Erro ao invocar agente: {e}"
+    else:
         raise HTTPException(
             status_code=500,
-            detail="OPENAI_API_KEY not configured. Set it as environment variable in Vercel.",
+            detail="Nem Claude CLI nem OPENAI_API_KEY disponíveis.",
         )
-
-    ts = datetime.now(timezone.utc).isoformat()
-    system_prompt = build_agent_system_prompt(agent)
-
-    try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            max_tokens=4096,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": req.message},
-            ],
-        )
-        choice = completion.choices[0] if completion.choices else None
-        response = choice.message.content if choice and choice.message.content else "(sem resposta)"
-    except openai.AuthenticationError:
-        response = "Erro: OPENAI_API_KEY inválida."
-    except openai.RateLimitError:
-        response = "Erro: rate limit atingido na API. Tente novamente em alguns segundos."
-    except Exception as e:
-        response = f"Erro ao invocar agente: {e}"
 
     append_event(agent, "chat", f"Mensagem enviada ao agente {agent}", {"message": req.message[:200]})
 
