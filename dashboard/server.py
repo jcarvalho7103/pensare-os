@@ -12,7 +12,7 @@ from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Any
 
-import anthropic
+import openai
 import yaml
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -509,11 +509,11 @@ async def get_soul():
 
 
 # ---------------------------------------------------------------------------
-# Claude API client + agent system prompt builder
+# OpenAI API client + agent system prompt builder
 # ---------------------------------------------------------------------------
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "codex-mini")
 
 
 def build_agent_system_prompt(agent: str) -> str:
@@ -577,27 +577,30 @@ async def post_chat(req: ChatRequest):
     if not agent.startswith("pensare"):
         raise HTTPException(status_code=400, detail="Only pensare-* agents allowed")
 
-    if not ANTHROPIC_API_KEY:
+    if not OPENAI_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="ANTHROPIC_API_KEY not configured. Set it as environment variable in Vercel.",
+            detail="OPENAI_API_KEY not configured. Set it as environment variable in Vercel.",
         )
 
     ts = datetime.now(timezone.utc).isoformat()
     system_prompt = build_agent_system_prompt(agent)
 
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        message = client.messages.create(
-            model=CLAUDE_MODEL,
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        completion = client.chat.completions.create(
+            model=OPENAI_MODEL,
             max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": req.message}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": req.message},
+            ],
         )
-        response = message.content[0].text if message.content else "(sem resposta)"
-    except anthropic.AuthenticationError:
-        response = "Erro: ANTHROPIC_API_KEY inválida."
-    except anthropic.RateLimitError:
+        choice = completion.choices[0] if completion.choices else None
+        response = choice.message.content if choice and choice.message.content else "(sem resposta)"
+    except openai.AuthenticationError:
+        response = "Erro: OPENAI_API_KEY inválida."
+    except openai.RateLimitError:
         response = "Erro: rate limit atingido na API. Tente novamente em alguns segundos."
     except Exception as e:
         response = f"Erro ao invocar agente: {e}"
