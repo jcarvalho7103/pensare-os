@@ -1,0 +1,1 @@
+"OVERVIEW:\nH2: Pensare OS\nH2: Agents\nH1: Agents\nP: Organograma vivo. Clique em um agent para ver responsabilidades e markdown.\n\nBUTTONS: [\"Buscar tudo⌘K\",\"Novo agent\"]"
