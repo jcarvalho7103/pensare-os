@@ -1,5 +1,5 @@
 """
-Pensare OS Dashboard — FastAPI Backend
+Pensare OS Dashboard — FastAPI Backend (Supabase-backed)
 Run: python server.py
 """
 
@@ -21,10 +21,25 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
+# Supabase client
+# ---------------------------------------------------------------------------
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://tplwqvvffanwsyhgufya.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwbHdxdnZmZmFud3N5aGd1ZnlhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODc4NzIwOSwiZXhwIjoyMDk0MzYzMjA5fQ.bGp-ym88m7Rku62FLoXP0gVpaW2v_6WxIGZiYyZq0JQ")
+
+_sb = None
+
+def get_sb():
+    global _sb
+    if _sb is None:
+        from supabase import create_client
+        _sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _sb
+
+# ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
 
-# Detecta workspace: env var > /var/task (Vercel) > dir local
 _default_workspace = Path(__file__).resolve().parent.parent
 WORKSPACE_ROOT = Path(os.environ.get("PENSARE_WORKSPACE", str(_default_workspace)))
 DASHBOARD_DIR = WORKSPACE_ROOT / "dashboard"
@@ -61,13 +76,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# StaticFiles mount opcional — só monta se o dir existe e é gravável
 static_path = DASHBOARD_DIR / "static"
 try:
     static_path.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 except (OSError, PermissionError):
-    # Em ambientes read-only (Vercel) o mkdir falha — sem problema, segue sem static mount
     pass
 
 
@@ -82,24 +95,7 @@ def safe_read(path: Path, default: str = "") -> str:
         return default
 
 
-def read_ndjson_tail(path: Path, n: int = 200) -> list[dict]:
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").strip().splitlines()
-    result = []
-    for line in lines[-n:]:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            result.append(json.loads(line))
-        except Exception:
-            pass
-    return result
-
-
 def validate_path(rel_path: str) -> Path:
-    """Prevent path traversal — ensure path stays inside WORKSPACE_ROOT."""
     target = (WORKSPACE_ROOT / rel_path).resolve()
     if not str(target).startswith(str(WORKSPACE_ROOT.resolve())):
         raise HTTPException(status_code=400, detail="Path traversal denied")
@@ -107,20 +103,25 @@ def validate_path(rel_path: str) -> Path:
 
 
 def append_event(agent: str, event_type: str, summary: str, payload: dict | None = None):
-    EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    event = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "agent": agent,
-        "type": event_type,
-        "summary": summary,
-        "payload": payload or {},
-    }
-    with EVENTS_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    ts = datetime.now(timezone.utc).isoformat()
+    try:
+        get_sb().table("events").insert({
+            "ts": ts, "agent": agent, "type": event_type,
+            "summary": summary, "payload": payload or {},
+        }).execute()
+    except Exception:
+        pass
+    # Also write local file as fallback
+    try:
+        EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        event = {"ts": ts, "agent": agent, "type": event_type, "summary": summary, "payload": payload or {}}
+        with EVENTS_FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def parse_frontmatter(text: str) -> dict:
-    """Parse YAML frontmatter from a markdown file."""
     if not text.startswith("---"):
         return {}
     parts = text.split("---", 2)
@@ -154,12 +155,27 @@ async def serve_index():
 
 @app.get("/api/metrics")
 async def get_metrics():
-    events = read_ndjson_tail(EVENTS_FILE, 200)
+    sb = get_sb()
     today = today_str()
+    today_start = f"{today}T00:00:00+00:00"
+    today_end = f"{today}T23:59:59+00:00"
 
-    events_today = [e for e in events if e.get("ts", "").startswith(today)]
-    erros_hoje = sum(1 for e in events_today if e.get("type") in ("error", "erro"))
-    agentes_hoje = len({e.get("agent") for e in events_today if e.get("agent")})
+    try:
+        total_r = sb.table("events").select("id", count="exact").execute()
+        total_eventos = total_r.count or 0
+    except Exception:
+        total_eventos = 0
+
+    try:
+        today_r = sb.table("events").select("agent,type", count="exact").gte("ts", today_start).lte("ts", today_end).execute()
+        eventos_hoje = today_r.count or 0
+        events_today = today_r.data or []
+        erros_hoje = sum(1 for e in events_today if e.get("type") in ("error", "erro"))
+        agentes_hoje = len({e.get("agent") for e in events_today if e.get("agent")})
+    except Exception:
+        eventos_hoje = 0
+        erros_hoje = 0
+        agentes_hoje = 0
 
     empresa_text = safe_read(CONTEXTO_DIR / "empresa.md")
     empresa_nome = "Pensare"
@@ -177,10 +193,10 @@ async def get_metrics():
         "receita": "R$ 0",
         "cpl": "—",
         "conversao": "0%",
-        "eventos_hoje": len(events_today),
+        "eventos_hoje": eventos_hoje,
         "erros_hoje": erros_hoje,
         "agentes_hoje": agentes_hoje,
-        "total_eventos": len(events),
+        "total_eventos": total_eventos,
     }
 
 
@@ -190,8 +206,11 @@ async def get_metrics():
 
 @app.get("/api/events")
 async def get_events():
-    events = read_ndjson_tail(EVENTS_FILE, 200)
-    return {"events": events[-50:][::-1]}
+    try:
+        r = get_sb().table("events").select("*").order("ts", desc=True).limit(50).execute()
+        return {"events": r.data or []}
+    except Exception:
+        return {"events": []}
 
 
 # ---------------------------------------------------------------------------
@@ -333,49 +352,18 @@ async def put_memory_file(req: FileWriteRequest):
 # GET /api/tasks
 # ---------------------------------------------------------------------------
 
-def parse_tasks_from_memory(text: str) -> dict:
-    pending, in_progress, done = [], [], []
-
-    in_next_steps = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if re.match(r"^#{1,3}\s+(next steps|próximos passos|tasks|tarefas)", stripped, re.IGNORECASE):
-            in_next_steps = True
-            continue
-        if in_next_steps and re.match(r"^#{1,3}\s+", stripped):
-            in_next_steps = False
-        if not in_next_steps:
-            continue
-
-        # [ ] pending  [x] done  [~] in progress
-        m = re.match(r"[-*]\s+\[([ xX~])\]\s+(.*)", stripped)
-        if m:
-            state, title = m.group(1), m.group(2).strip()
-            priority = "medium"
-            pm = re.search(r"\[!(urgent|high|medium|low)\]", title, re.IGNORECASE)
-            if pm:
-                priority = pm.group(1).lower()
-                title = re.sub(r"\[!(urgent|high|medium|low)\]", "", title, flags=re.IGNORECASE).strip()
-            task = {"title": title, "priority": priority}
-            if state in (" ", ""):
-                pending.append(task)
-            elif state in ("x", "X"):
-                done.append(task)
-            elif state == "~":
-                in_progress.append(task)
-        elif stripped.startswith(("-", "*")) and stripped[1:].strip():
-            # Plain list items → pending
-            title = stripped.lstrip("-* ").strip()
-            if title:
-                pending.append({"title": title, "priority": "medium"})
-
-    return {"pending": pending, "in_progress": in_progress, "done": done}
-
-
 @app.get("/api/tasks")
 async def get_tasks():
-    text = safe_read(MEMORY_FILE)
-    return parse_tasks_from_memory(text)
+    sb = get_sb()
+    try:
+        r = sb.table("tasks").select("*").order("created_at", desc=True).limit(100).execute()
+        rows = r.data or []
+    except Exception:
+        rows = []
+    pending = [{"id": t["id"], "title": t["title"], "priority": t["priority"]} for t in rows if t["status"] == "pending"]
+    in_progress = [{"id": t["id"], "title": t["title"], "priority": t["priority"]} for t in rows if t["status"] == "in_progress"]
+    done = [{"id": t["id"], "title": t["title"], "priority": t["priority"]} for t in rows if t["status"] == "done"]
+    return {"pending": pending, "in_progress": in_progress, "done": done}
 
 
 # ---------------------------------------------------------------------------
@@ -390,18 +378,31 @@ class NewTask(BaseModel):
 
 @app.post("/api/tasks")
 async def create_task(task: NewTask):
-    text = safe_read(MEMORY_FILE)
-    marker = "## Next Steps"
-    checkbox = "- [ ]"
-    new_line = f"{checkbox} [!{task.priority}] {task.title}\n"
-
-    if marker in text:
-        text = text.replace(marker, marker + "\n" + new_line, 1)
-    else:
-        text = text + f"\n\n{marker}\n{new_line}"
-
-    MEMORY_FILE.write_text(text, encoding="utf-8")
+    try:
+        get_sb().table("tasks").insert({
+            "title": task.title,
+            "priority": task.priority,
+            "status": task.status,
+        }).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     append_event("dashboard", "task_created", f"Task criada: {task.title}")
+    return {"ok": True}
+
+
+class TaskUpdate(BaseModel):
+    status: str
+
+
+@app.patch("/api/tasks/{task_id}")
+async def update_task(task_id: int, req: TaskUpdate):
+    try:
+        get_sb().table("tasks").update({
+            "status": req.status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", task_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return {"ok": True}
 
 
@@ -444,12 +445,12 @@ async def get_heartbeats():
     text = safe_read(HEARTBEAT_FILE)
     routines = parse_heartbeat_routines(text)
 
-    state: dict = {}
-    if HEARTBEAT_STATE.exists():
-        try:
-            state = json.loads(HEARTBEAT_STATE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    # Load state from Supabase
+    try:
+        r = get_sb().table("heartbeat_state").select("*").execute()
+        state = {row["name"]: row for row in (r.data or [])}
+    except Exception:
+        state = {}
 
     for r in routines:
         key = r["name"]
